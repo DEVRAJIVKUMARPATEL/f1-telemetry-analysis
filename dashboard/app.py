@@ -652,71 +652,102 @@ with tab5:
 # ── Tab 6: Race Replay ────────────────────────────────────────────────────────
 
 with tab6:
-    st.subheader("🎬 Race Replay — Driver Position Comparison")
+    st.subheader("🎬 Race Replay — Lap-by-Lap Position Tracker")
 
     selected_drivers = st.multiselect(
         "Select Drivers",
         options=drivers,
-        default=drivers[:2] if len(drivers) >= 2 else drivers,
+        default=drivers[:5] if len(drivers) >= 5 else drivers,
         format_func=lambda d: f"{get_nationality_flag(d)} {d}",
         key="replay_drivers",
     )
 
     if not selected_drivers:
-        st.info("Select at least one driver to view their racing line.")
+        st.info("Select at least one driver to view their position.")
     else:
-        fig_replay = go.Figure()
-        loaded_any = False
+        # Determine lap range from session data
+        try:
+            lap_nums = sorted(session.laps["LapNumber"].dropna().unique().astype(int).tolist())
+            min_lap, max_lap = lap_nums[0], lap_nums[-1]
+        except Exception:
+            min_lap, max_lap = 1, 56
 
+        selected_lap = st.slider(
+            "Lap Number",
+            min_value=min_lap,
+            max_value=max_lap,
+            value=min_lap,
+            step=1,
+            key="replay_lap_slider",
+        )
+
+        fig_replay = go.Figure()
+
+        # Draw track outline from first driver that has position data
+        for ref_drv in selected_drivers:
+            try:
+                ref_tel = get_fastest_lap_telemetry_with_position(session, ref_drv)
+                if "X" in ref_tel.columns and "Y" in ref_tel.columns and len(ref_tel) > 0:
+                    fig_replay.add_trace(
+                        go.Scatter(
+                            x=ref_tel["X"],
+                            y=ref_tel["Y"],
+                            mode="lines",
+                            line=dict(color="rgba(180,180,180,0.25)", width=14),
+                            showlegend=False,
+                            hoverinfo="skip",
+                            name="_track",
+                        )
+                    )
+                    break
+            except Exception:
+                continue
+
+        # Place each driver as a dot at their lap-start position
+        any_plotted = False
         for drv in selected_drivers:
             try:
-                tel = get_fastest_lap_telemetry_with_position(session, drv)
-
-                if "X" not in tel.columns or "Y" not in tel.columns:
-                    st.warning(f"No position data available for {drv}.")
+                drv_laps = session.laps.pick_driver(drv)
+                lap_row = drv_laps[drv_laps["LapNumber"] == selected_lap]
+                if lap_row.empty:
                     continue
-
+                tel = lap_row.iloc[0].get_telemetry()
+                if tel is None or tel.empty:
+                    continue
+                if "X" not in tel.columns or "Y" not in tel.columns:
+                    continue
+                x_pos = float(tel["X"].iloc[0])
+                y_pos = float(tel["Y"].iloc[0])
                 color = get_team_color(session, drv)
                 flag = get_nationality_flag(drv)
-                custom = tel["Distance"].values if "Distance" in tel.columns else None
-
                 fig_replay.add_trace(
                     go.Scatter(
-                        x=tel["X"],
-                        y=tel["Y"],
-                        mode="lines",
+                        x=[x_pos],
+                        y=[y_pos],
+                        mode="markers+text",
+                        marker=dict(
+                            size=18,
+                            color=color,
+                            line=dict(width=2, color="white"),
+                        ),
+                        text=[drv],
+                        textposition="top center",
+                        textfont=dict(color="white", size=11),
                         name=f"{flag} {drv}",
-                        line=dict(color=color, width=3),
-                        customdata=custom,
                         hovertemplate=(
                             f"<b>{flag} {drv}</b><br>"
-                            "Distance: %{customdata:.0f} m<extra></extra>"
+                            f"Lap {selected_lap}<extra></extra>"
                         ),
                     )
                 )
+                any_plotted = True
+            except Exception:
+                continue
 
-                # Start/finish dot per driver
-                fig_replay.add_trace(
-                    go.Scatter(
-                        x=[tel["X"].iloc[0]],
-                        y=[tel["Y"].iloc[0]],
-                        mode="markers",
-                        marker=dict(size=12, color=color, symbol="circle",
-                                    line=dict(width=2, color="white")),
-                        showlegend=False,
-                        hovertemplate=f"{flag} {drv} — Start/Finish<extra></extra>",
-                    )
-                )
-
-                loaded_any = True
-
-            except Exception as e:
-                st.warning(f"Could not load position data for {drv}: {e}")
-
-        if loaded_any:
+        if any_plotted:
             fig_replay.update_layout(
                 title=dict(
-                    text="Fastest Lap Racing Lines — Driver Comparison",
+                    text=f"Driver Positions — Lap {selected_lap}",
                     x=0.5,
                     xanchor="center",
                     font=dict(size=16),
@@ -742,8 +773,6 @@ with tab6:
                 ),
             )
             st.plotly_chart(fig_replay, use_container_width=True)
-
-            st.markdown("""
-            **Racing Lines Legend:**
-            Each driver's line is colored by their constructor. Overlapping lines reveal where drivers take the same or different approaches through corners.
-            """)
+            st.caption("Use the Lap Number slider above to scrub through the race. Each dot marks where a driver began that lap.")
+        else:
+            st.info(f"No position data found for any selected driver on lap {selected_lap}.")
