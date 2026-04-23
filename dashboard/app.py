@@ -9,7 +9,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 
 from loader import SESSION_TYPES, get_driver_abbreviations, get_schedule, load_session
-from analysis import compare_drivers, get_fastest_lap_telemetry, get_lap_times
+from analysis import compare_drivers, get_fastest_lap_telemetry, get_fastest_lap_telemetry_with_position, get_lap_times
 
 st.set_page_config(
     page_title="F1 Telemetry Analysis",
@@ -293,7 +293,7 @@ st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab1, tab2, tab3, tab4 = st.tabs(["📈 Lap Times", "⚡ Speed Trace", "🔁 Driver Comparison", "🛞 Tyre Strategy"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Lap Times", "⚡ Speed Trace", "🔁 Driver Comparison", "🛞 Tyre Strategy", "🗺️ Track Map"])
 
 # ── Tab 1: Lap Time Progression ───────────────────────────────────────────────
 
@@ -545,3 +545,106 @@ with tab4:
 
     except Exception as e:
         st.error(f"Could not load pit stop data: {e}")
+
+# ── Tab 5: Track Map ──────────────────────────────────────────────────────────
+
+with tab5:
+    st.subheader("🗺️ Track Map — Speed Visualization")
+
+    try:
+        tel = get_fastest_lap_telemetry_with_position(session, driver1)
+
+        # Check if we have X and Y coordinates
+        if "X" not in tel.columns or "Y" not in tel.columns:
+            st.warning("Track map data (X, Y coordinates) is not available for this session.")
+        else:
+            # Get fastest lap time for display
+            fastest_lap_time = get_lap_times(session, driver1)
+            if not fastest_lap_time.empty:
+                fastest_time = fastest_lap_time["LapTime"].min()
+                fastest_time_str = format_lap_time(fastest_time)
+            else:
+                fastest_time_str = "N/A"
+
+            # Create track map visualization
+            fig_track = go.Figure()
+
+            # Add the track with speed coloring
+            fig_track.add_trace(
+                go.Scatter(
+                    x=tel["X"],
+                    y=tel["Y"],
+                    mode="markers",
+                    marker=dict(
+                        size=8,
+                        color=tel["Speed"],
+                        colorscale=[
+                            [0, "#FF0000"],      # Red - slow
+                            [0.5, "#FFFF00"],    # Yellow - medium
+                            [1, "#00FF00"],      # Green - fast
+                        ],
+                        showscale=True,
+                        colorbar=dict(
+                            title="Speed<br>(km/h)",
+                            thickness=15,
+                            len=0.7,
+                        ),
+                        line=dict(width=0.5, color="rgba(255, 255, 255, 0.3)"),
+                    ),
+                    text=[f"Speed: {s:.1f} km/h<br>Distance: {d:.0f}m"
+                          for s, d in zip(tel["Speed"], tel["Distance"])],
+                    hovertemplate="%{text}<extra></extra>",
+                    name="Track",
+                )
+            )
+
+            # Add start/finish line marker
+            if len(tel) > 0:
+                fig_track.add_trace(
+                    go.Scatter(
+                        x=[tel["X"].iloc[0]],
+                        y=[tel["Y"].iloc[0]],
+                        mode="markers+text",
+                        marker=dict(size=15, color="white", symbol="square",
+                                  line=dict(width=2, color="black")),
+                        text=["S/F"],
+                        textposition="top center",
+                        name="Start/Finish",
+                        hovertemplate="Start/Finish Line<extra></extra>",
+                    )
+                )
+
+            driver_team = get_driver_team(session, driver1)
+            team_color = get_team_color(session, driver1)
+
+            fig_track.update_layout(
+                title=dict(
+                    text=f"{get_nationality_flag(driver1)} {driver1} • {driver_team}<br><sub>Fastest Lap: {fastest_time_str}</sub>",
+                    x=0.5,
+                    xanchor="center",
+                ),
+                xaxis_title="X Position (m)",
+                yaxis_title="Y Position (m)",
+                height=700,
+                template="plotly_dark",
+                plot_bgcolor=F1_BLACK,
+                paper_bgcolor=F1_BLACK,
+                hovermode="closest",
+                showlegend=True,
+                xaxis=dict(scaleanchor="y", scaleratio=1),
+                yaxis=dict(scaleanchor="x", scaleratio=1),
+            )
+
+            st.plotly_chart(fig_track, use_container_width=True)
+
+            # Add legend explanation
+            st.markdown("""
+            **Track Map Legend:**
+            - 🟩 **Green** - High speed areas (acceleration zones)
+            - 🟨 **Yellow** - Medium speed areas (mid-corner)
+            - 🔴 **Red** - Low speed areas (braking/tight corners)
+            - ⬜ **S/F** - Start/Finish line
+            """)
+
+    except Exception as e:
+        st.error(f"Could not load track map: {e}")
