@@ -64,6 +64,16 @@ def get_nationality_flag(driver_abbr):
     """Get nationality flag for driver."""
     return DRIVER_NATIONALITIES.get(driver_abbr, "🏁")
 
+def format_lap_time(timedelta_obj):
+    """Convert pandas Timedelta to MM:SS.mmm format."""
+    try:
+        total_seconds = timedelta_obj.total_seconds()
+        minutes = int(total_seconds // 60)
+        seconds = total_seconds % 60
+        return f"{minutes}:{seconds:06.3f}"
+    except:
+        return "N/A"
+
 st.markdown("""
     <style>
     .hero-banner {
@@ -207,8 +217,8 @@ def get_driver_metrics(session, driver):
         total_laps = len(laps)
 
         return {
-            "fastest": str(fastest_lap).split(".")[0],
-            "average": str(avg_lap).split(".")[0],
+            "fastest": format_lap_time(fastest_lap),
+            "average": format_lap_time(avg_lap),
             "total": total_laps,
         }
     except Exception as e:
