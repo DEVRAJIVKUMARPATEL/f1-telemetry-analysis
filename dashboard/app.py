@@ -293,7 +293,7 @@ st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Lap Times", "⚡ Speed Trace", "🔁 Driver Comparison", "🛞 Tyre Strategy", "🗺️ Track Map"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📈 Lap Times", "⚡ Speed Trace", "🔁 Driver Comparison", "🛞 Tyre Strategy", "🗺️ Track Map", "🎬 Race Replay"])
 
 # ── Tab 1: Lap Time Progression ───────────────────────────────────────────────
 
@@ -648,3 +648,102 @@ with tab5:
 
     except Exception as e:
         st.error(f"Could not load track map: {e}")
+
+# ── Tab 6: Race Replay ────────────────────────────────────────────────────────
+
+with tab6:
+    st.subheader("🎬 Race Replay — Driver Position Comparison")
+
+    selected_drivers = st.multiselect(
+        "Select Drivers",
+        options=drivers,
+        default=drivers[:2] if len(drivers) >= 2 else drivers,
+        format_func=lambda d: f"{get_nationality_flag(d)} {d}",
+        key="replay_drivers",
+    )
+
+    if not selected_drivers:
+        st.info("Select at least one driver to view their racing line.")
+    else:
+        fig_replay = go.Figure()
+        loaded_any = False
+
+        for drv in selected_drivers:
+            try:
+                tel = get_fastest_lap_telemetry_with_position(session, drv)
+
+                if "X" not in tel.columns or "Y" not in tel.columns:
+                    st.warning(f"No position data available for {drv}.")
+                    continue
+
+                color = get_team_color(session, drv)
+                flag = get_nationality_flag(drv)
+                custom = tel["Distance"].values if "Distance" in tel.columns else None
+
+                fig_replay.add_trace(
+                    go.Scatter(
+                        x=tel["X"],
+                        y=tel["Y"],
+                        mode="lines",
+                        name=f"{flag} {drv}",
+                        line=dict(color=color, width=3),
+                        customdata=custom,
+                        hovertemplate=(
+                            f"<b>{flag} {drv}</b><br>"
+                            "Distance: %{customdata:.0f} m<extra></extra>"
+                        ),
+                    )
+                )
+
+                # Start/finish dot per driver
+                fig_replay.add_trace(
+                    go.Scatter(
+                        x=[tel["X"].iloc[0]],
+                        y=[tel["Y"].iloc[0]],
+                        mode="markers",
+                        marker=dict(size=12, color=color, symbol="circle",
+                                    line=dict(width=2, color="white")),
+                        showlegend=False,
+                        hovertemplate=f"{flag} {drv} — Start/Finish<extra></extra>",
+                    )
+                )
+
+                loaded_any = True
+
+            except Exception as e:
+                st.warning(f"Could not load position data for {drv}: {e}")
+
+        if loaded_any:
+            fig_replay.update_layout(
+                title=dict(
+                    text="Fastest Lap Racing Lines — Driver Comparison",
+                    x=0.5,
+                    xanchor="center",
+                    font=dict(size=16),
+                ),
+                height=700,
+                template="plotly_dark",
+                plot_bgcolor=F1_BLACK,
+                paper_bgcolor=F1_BLACK,
+                hovermode="closest",
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                xaxis=dict(
+                    scaleanchor="y",
+                    scaleratio=1,
+                    showgrid=False,
+                    zeroline=False,
+                    showticklabels=False,
+                ),
+                yaxis=dict(
+                    showgrid=False,
+                    zeroline=False,
+                    showticklabels=False,
+                ),
+            )
+            st.plotly_chart(fig_replay, use_container_width=True)
+
+            st.markdown("""
+            **Racing Lines Legend:**
+            Each driver's line is colored by their constructor. Overlapping lines reveal where drivers take the same or different approaches through corners.
+            """)
