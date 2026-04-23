@@ -133,7 +133,7 @@ with st.sidebar:
 
     st.markdown('<div class="sidebar-header">📅 Session Selection</div>', unsafe_allow_html=True)
 
-    year = st.selectbox("Year", list(range(2024, 2017, -1)), index=0)
+    year = st.selectbox("Year", list(range(2026, 2017, -1)), index=0)
 
     @st.cache_data(show_spinner="Loading calendar…")
     def fetch_schedule(y: int):
