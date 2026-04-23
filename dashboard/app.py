@@ -133,7 +133,7 @@ with st.sidebar:
 
     st.markdown('<div class="sidebar-header">📅 Session Selection</div>', unsafe_allow_html=True)
 
-    year = st.selectbox("Year", list(range(2026, 2017, -1)), index=0)
+    year = st.selectbox("Year", list(range(2026, 2017, -1)), index=0, key="year_selector")
 
     @st.cache_data(show_spinner="Loading calendar…")
     def fetch_schedule(y: int):
@@ -146,8 +146,8 @@ with st.sidebar:
         st.error(f"Could not load schedule: {e}")
         st.stop()
 
-    race = st.selectbox("Grand Prix", race_names)
-    session_label = st.selectbox("Session", list(SESSION_TYPES.keys()), index=0)
+    race = st.selectbox("Grand Prix", race_names, key="race_selector")
+    session_label = st.selectbox("Session", list(SESSION_TYPES.keys()), index=0, key="session_selector")
     session_type = SESSION_TYPES[session_label]
 
     load_btn = st.button("🚀 Load Session", type="primary", use_container_width=True)
@@ -189,11 +189,17 @@ except Exception as e:
     st.error(f"Could not retrieve drivers: {e}")
     st.stop()
 
+# Check if we have valid driver data
+if not drivers or all(d is None for d in drivers):
+    st.warning("⏳ Data Not Available")
+    st.info("This session data is not yet available from FastF1. Please try a completed race or select a different session.")
+    st.stop()
+
 with st.sidebar:
     st.divider()
     st.markdown('<div class="sidebar-header">👥 Driver Selection</div>', unsafe_allow_html=True)
-    driver1 = st.selectbox("Driver 1", drivers, index=0, format_func=lambda d: f"{get_nationality_flag(d)} {d}")
-    driver2 = st.selectbox("Driver 2", drivers, index=min(1, len(drivers) - 1), format_func=lambda d: f"{get_nationality_flag(d)} {d}")
+    driver1 = st.selectbox("Driver 1", drivers, index=0, format_func=lambda d: f"{get_nationality_flag(d)} {d}", key="driver1_selector")
+    driver2 = st.selectbox("Driver 2", drivers, index=min(1, len(drivers) - 1), format_func=lambda d: f"{get_nationality_flag(d)} {d}", key="driver2_selector")
 
 # ── Hero Banner ──────────────────────────────────────────────────────────────
 
@@ -295,8 +301,8 @@ with tab1:
     st.subheader(f"Lap Time Progression — {year} {race} {session_label}")
 
     col1, col2 = st.columns(2)
-    show_d1 = col1.checkbox(f"Show {driver1}", value=True)
-    show_d2 = col2.checkbox(f"Show {driver2}", value=True)
+    show_d1 = col1.checkbox(f"Show {driver1}", value=True, key="show_d1")
+    show_d2 = col2.checkbox(f"Show {driver2}", value=True, key="show_d2")
 
     fig = go.Figure()
 
