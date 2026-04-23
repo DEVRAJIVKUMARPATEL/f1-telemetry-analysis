@@ -693,7 +693,7 @@ with tab6:
                             x=ref_tel["X"],
                             y=ref_tel["Y"],
                             mode="lines",
-                            line=dict(color="rgba(180,180,180,0.25)", width=14),
+                            line=dict(color="#CCCCCC", width=10),
                             showlegend=False,
                             hoverinfo="skip",
                             name="_track",
@@ -726,13 +726,13 @@ with tab6:
                         y=[y_pos],
                         mode="markers+text",
                         marker=dict(
-                            size=18,
+                            size=20,
                             color=color,
-                            line=dict(width=2, color="white"),
+                            line=dict(width=2.5, color="white"),
                         ),
-                        text=[drv],
-                        textposition="top center",
-                        textfont=dict(color="white", size=11),
+                        text=[f"  {drv}"],
+                        textposition="middle right",
+                        textfont=dict(color="white", size=12, family="Arial Black"),
                         name=f"{flag} {drv}",
                         hovertemplate=(
                             f"<b>{flag} {drv}</b><br>"
